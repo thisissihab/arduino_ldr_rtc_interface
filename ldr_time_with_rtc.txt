@@ -1,0 +1,263 @@
+#include <Wire.h>
+#include <LiquidCrystal.h>
+
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+const int DS1307 = 0x68; // Address of DS1307 see data sheets
+const char* days[] =
+{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+const char* months[] =
+{"January", "February", "March", "April", "May", "June", "July", "August","September", "October", "November", "December"};
+
+// Initializes all values: 
+byte second = 0;
+byte minute = 0;
+byte hour = 0;
+byte weekday = 0;
+byte monthday = 0;
+byte month = 0;
+byte year = 0;
+
+
+int sensorPin = 8;
+
+
+float coveredTime = 0.0;
+int sensorValue = 0;
+
+
+bool time_is_set_or_not = false;
+bool hr = false, min = false, sec = false;
+bool reset_controller = true;
+
+bool sensorCovered = false;
+bool entered = false;
+int temp_time=0;
+unsigned long previous_time = 0;
+int total_time = 0;
+int setAddress=0;
+float total_covered_time = 0.0;
+int count = 0;
+
+unsigned long sensor_time = 0;
+unsigned long current_time_controller = 0;
+unsigned long covered_time_controller = 0;
+
+byte hours=0, minutes=0, seconds=0;
+
+void setup() {
+  Wire.begin();
+  lcd.begin(16, 2);
+  Serial.begin(9600);
+  
+  lcd.print("Current Time");
+  
+  previous_time = millis();
+  current_time_controller = millis();
+}
+void loop() {
+  
+  
+  sensorValue = digitalRead(sensorPin);
+  Serial.println(sensorValue);
+  
+  if(sensorValue > 0){
+    
+    if(!sensorCovered){
+      
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("Sensing Object");
+    
+    sensor_time = millis();
+    
+    sensorCovered = true;
+    }
+    
+    lcd.setCursor(0, 1);
+    lcd.print((millis()-sensor_time)/1000.0);
+    
+    lcd.setCursor(5, 1);
+    lcd.print("sec");
+  }
+  else{
+    
+    if(sensorCovered){
+      
+      coveredTime = (float)(millis() - sensor_time)/1000.0;
+      total_covered_time = total_covered_time + coveredTime;
+      print_sensor_covered_time();
+      covered_time_controller = millis();
+      sensorCovered = false; 
+      entered = true;
+    }
+    else{
+      Serial.println("Inside Here");
+      if((millis() - current_time_controller > 1000) && !entered){
+        print_current_time();
+        current_time_controller = millis();
+        if(count >= 5){
+          print_sensor_covered_time();
+          count = 0;
+          }
+        else count++;
+        }
+      if((millis() - covered_time_controller > 3000) && entered) {
+        entered = false;
+        covered_time_controller = millis();
+      }
+    }
+  }
+
+  if(((int)hour == 0) && reset_controller){
+    total_covered_time = 0.0;
+    reset_controller = false;
+    reset_time();
+  }
+  if(((int)hour == 1) && !reset_controller){
+    reset_controller = true;
+    }
+  
+  /*if(total_time > 1440){
+   
+   total_covered_time = 0.00;
+   Serial.println("Value Reset");
+   lcd.setCursor(0, 1);
+   lcd.print("                ");
+   lcd.setCursor(0, 1);
+   lcd.print("Value Reset");
+   delay(1000);
+   lcd.setCursor(0, 1);
+   lcd.print("Total = ");
+   lcd.setCursor(8, 1);
+    lcd.print(total_covered_time);
+   lcd.setCursor(13, 1);
+   lcd.print("sec");
+   
+   total_time = 0;
+  }
+  
+  if(millis()-previous_time>60000){
+   
+    total_time += 1;
+    previous_time = millis();
+      
+  }*/
+    
+  
+}
+
+void reset_time(){
+     lcd.setCursor(0, 1);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("Resetting");
+    delay(500);
+
+    lcd.setCursor(11, 0);
+    lcd.print(".");
+    delay(500);
+
+    lcd.setCursor(12, 0);
+    lcd.print(".");
+    delay(500);
+
+    lcd.setCursor(13, 0);
+    lcd.print(".");
+    delay(500);
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+
+    lcd.setCursor(0, 0);
+    lcd.print("--- DONE ---");
+    delay(2000);
+
+    
+  }
+
+void print_sensor_covered_time(){
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+      
+    lcd.setCursor(0, 0);
+    lcd.print("Object Sensed");
+
+    lcd.setCursor(0, 1);
+    lcd.print("Total = ");
+    
+    lcd.setCursor(8, 1);
+    lcd.print(total_covered_time);
+      
+    lcd.setCursor(13, 1);
+    lcd.print("sec");
+  }
+
+void readTime() {
+  Wire.beginTransmission(DS1307);
+  Wire.write(byte(0));
+  Wire.endTransmission();
+  Wire.requestFrom(DS1307, 7);
+  second = bcdToDec(Wire.read());
+  minute = bcdToDec(Wire.read());
+  hour = bcdToDec(Wire.read());
+  weekday = bcdToDec(Wire.read());
+  monthday = bcdToDec(Wire.read());
+  month = bcdToDec(Wire.read());
+  year = bcdToDec(Wire.read());
+}
+
+void print_current_time(){
+  readTime();
+  lcd.setCursor(0, 0);
+  lcd.print("                ");
+  lcd.setCursor(0, 1);
+  lcd.print("                ");
+  lcd.setCursor(0, 0);
+  lcd.print("Current Time");
+  lcd.setCursor(0, 1);
+  lcd.print((String)hour+":"+(String)minute+":"+(String)second);
+  
+  }
+
+void printTime() {
+  char buffer[3];
+  const char* AMPM = 0;
+  readTime();
+  Serial.print(days[weekday-1]);
+  Serial.print(" ");
+  Serial.print(months[month-1]);
+  Serial.print(" ");
+  Serial.print(monthday);
+  Serial.print(", 20");
+  Serial.print(year);
+  Serial.print(" ");
+  if (hour > 12) {
+    hour -= 12;
+    AMPM = " PM";
+  }
+  else AMPM = " AM";
+  Serial.print(hour);
+  Serial.print(":");
+  sprintf(buffer, "%02d", minute);
+  Serial.print(buffer);
+  Serial.println(AMPM);
+}
+
+byte decToBcd(byte val) {
+  return ((val/10*16) + (val%10));
+}
+byte bcdToDec(byte val) {
+  return ((val/16*10) + (val%16));
+}
